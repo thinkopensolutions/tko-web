@@ -1,14 +1,14 @@
-odoo.define("web_widget_field_selector.field_selector", function (require) {
+odoo.define("web.ModelFieldSelector", function (require) {
 "use strict";
 
 var core = require("web.core");
-var field_registry = require('web.field_registry');
-var FieldChar = field_registry.get('char');
-var rpc = require('web.rpc');
+var Model = require("web.DataModel");
+var Widget = require("web.Widget");
+
 var _t = core._t;
 
-/// The FieldSelector widget can be used to select a particular field chain from a given model.
-var FieldSelector = FieldChar.extend({
+/// The ModelFieldSelector widget can be used to select a particular field chain from a given model.
+var ModelFieldSelector = Widget.extend({
     template: "FieldSelector",
     events: {
         // Handle popover opening and closing
@@ -30,7 +30,6 @@ var FieldSelector = FieldChar.extend({
         "click li.o_field_selector_select_button": function (e) {
             e.stopPropagation();
             this.selectField(this._getLastPageField($(e.currentTarget).data("name")));
-            this.$el.find('.o_field_selector_popover').addClass('hidden');
         },
 
         // Handle a direct change in the debug input
@@ -47,7 +46,6 @@ var FieldSelector = FieldChar.extend({
             this.validate(true);
             this._prefill().then(this.displayPage.bind(this, ""));
             this.trigger_up("field_chain_changed", {chain: this.chain});
-
         },
 
         // Handle keyboard and mouse navigation to build the field chain
@@ -110,16 +108,7 @@ var FieldSelector = FieldChar.extend({
             }
         },
     },
-    custom_events: {
-        "field_chain_changed": function (ev) {
-            // write chained value on the field
-            ev.stopPropagation();
-            this.$el.find('input[type=text]').val(ev.data.chain);
-            this._setValue(ev.data.chain);
-//            this.internal_set_value(e.data.chain);
-        },
-    },
-    /// The FieldSelector requires a model and a initial field chain to work with.
+    /// The ModelFieldSelector requires a model and a initial field chain to work with.
     /// @param model - a string with the model name (e.g. "res.partner")
     /// @param chain - a string with the initial field chain (e.g. "company_id.name")
     /// @param options - an object with several options:
@@ -132,18 +121,13 @@ var FieldSelector = FieldChar.extend({
     init: function (parent, model, chain, options) {
         this._super.apply(this, arguments);
 
-//        this.model = model;
-        var fieldname = this.attrs.data_model_field;
-
-        this.models = {};
-        this.chain =  this.value || 'id';
-        this.model_field = this.attrs.data_model_field;
+        this.model = model;
+        this.chain = chain;
         this.options = _.extend({
             filters: {},
             fields: null,
             followRelations: true,
             debugMode: false,
-            model_field: this.model_field,
         }, options || {});
         this.options.filters = _.extend({
             searchable: true,
@@ -153,20 +137,6 @@ var FieldSelector = FieldChar.extend({
         this.selectedField = false;
         this.isSelected = true;
         this.dirty = false;
-        var domain = []
-        // build dictionary with object name and Database ID
-        self =  this;
-        rpc.query({
-            model: 'ir.model',
-            method: 'search_read',
-            args: [domain],
-        }).then((function (result) {
-            _.each(result, function (data) {
-                    self.models[data.display_name] = data.model;
-                });
-        }).bind(this));
-
-        this.model= this.recordData[fieldname] && this.recordData[fieldname].data.display_name && this.get_model(this, this.recordData[fieldname].data.display_name)|| 'res.partner';
     },
     willStart: function () {
         return $.when(
@@ -174,19 +144,7 @@ var FieldSelector = FieldChar.extend({
             this._prefill()
         );
     },
-
-    get_model: function(self, display_name){
-    if (display_name){
-        return self.models[display_name] || "res.partner";
-    }
-    else{
-        return "res.partner"
-        }
-    },
     start: function () {
-        var fieldname = this.attrs.data_model_field;
-        var field_value = $("div[name="+fieldname+"] input").val();
-        this.model = this.recordData && this.recordData[fieldname].data && this.recordData[fieldname].data.display_name || this.get_model(this, field_value);
         this.$input = this.$("input");
         this.$popover = this.$(".o_field_selector_popover");
         this.displayPage();
@@ -196,19 +154,9 @@ var FieldSelector = FieldChar.extend({
     /// The setChain method saves a new field chain string and displays it in the DOM input element.
     /// @param chain - the new field chain string
     setChain: function (chain) {
-        if (_.isEqual(chain, this.chain)) {
-            return $.when();
-        }
-
         this.chain = chain;
-        return this._prefill().then(this._render.bind(this));
+        this.$input.val(this.chain);
     },
-//    setChain: function (chain) {
-//        this.chain = chain;
-//        //this.$input.val(this.chain);
-//        this.$el.find('input[type=text]').val(this.chain);
-//        this.field_manager.fields[this.field.__attrs.name].set_value(this.chain);
-//    },
     /// The addChainNode method adds a field name to the current field chain.
     /// @param fieldName - the new field name to add at the end of the current field chain
     addChainNode: function (fieldName) {
@@ -242,10 +190,7 @@ var FieldSelector = FieldChar.extend({
         this._isOpen = true;
         this._prefill().then((function () {
             this.displayPage();
-            //this.$popover.removeClass("hidden");
-            // Below line works
-            // yogesh
-            this.$el.find('.o_field_selector_popover').removeClass('hidden')
+            this.$popover.removeClass("hidden");
         }).bind(this));
     },
     /// The hidePopover method closes the popover and mark the field as selected. If the field chain changed,
@@ -253,9 +198,8 @@ var FieldSelector = FieldChar.extend({
     hidePopover: function () {
         if (!this._isOpen) return;
         this._isOpen = false;
-        //this.$popover.addClass("hidden");
+        this.$popover.addClass("hidden");
         this.isSelected = true;
-        this.$el.find('.o_field_selector_popover').addClass('hidden');
         if (this.dirty) {
             this.trigger_up("field_chain_changed", {chain: this.chain});
             this.dirty = false;
@@ -265,32 +209,6 @@ var FieldSelector = FieldChar.extend({
     /// @return a deferred which is resolved once the last page is shown
     _prefill: function () {
         this.pages = [];
-        var fieldname = this.attrs.data_model_field;
-        //get the value of selection field
-        var field_value = $("div[name="+fieldname+"] input").val();
-        var field_obj = this.recordData[fieldname] && this.recordData[fieldname].data;
-        // Both are same values so we can retun from data
-        if (field_value && field_obj.display_name === field_value){
-            var model = this.get_model(this, this.recordData[fieldname].data.display_name)
-        }
-        else if (!field_value && field_obj){
-            var model = this.get_model(this, this.recordData[fieldname].data.display_name)
-        }
-        else{
-            // value has been changed, get string with jqyery selector
-            var model = this.get_model(this, field_value)
-        }
-        // remove extra doble quotes from the objectname  eg: ""account.group"" ==> "account.group"
-        if (model){
-            model = model.replace(/^"(.*)"$/, '$1');}
-        // If model and this.model are mismatched
-        // clear the value from the field
-        if (model && this.model && model !== this.model){
-            this.chain = "id"
-            this.$el.find('input[type=text]').val("id");
-            this._setValue("id");
-        }
-        this.model = model;
         return this._pushPageData(this.model).then((function() {
             return (this.chain ? processChain.call(this, this.chain.split(".").reverse()) : $.when());
         }).bind(this));
@@ -392,14 +310,13 @@ var fieldsCache = {
         }).bind(this));
     },
     updateCache: function (model) {
-//        var _model = new Model(model);
-//        var _model = require(model);
-        this.cacheDefs[model] = rpc.query({
-            model: model,
-            method: 'fields_get',
-            args:[false, ["store", "searchable", "type", "string", "relation",
-                     "selection", "related"]]
-        }).then((function (fields) {
+        var _model = new Model(model);
+        this.cacheDefs[model] = _model.call(
+            "fields_get",
+            [false, ["store", "searchable", "type", "string", "relation",
+                     "selection", "related"]],
+            {context: _model.context()}
+        ).then((function (fields) {
             this.cache[model] = sortFields(fields);
         }).bind(this));
         return this.cacheDefs[model];
@@ -418,7 +335,6 @@ function sortFields(fields) {
         .map(function (p) { return _.extend({name: p[0]}, p[1]); })
         .value();
 }
-field_registry.add('field-selector', FieldSelector)
-//core.form_widget_registry.add('field-selector', FieldSelector);
-return FieldSelector;
+
+return ModelFieldSelector;
 });
