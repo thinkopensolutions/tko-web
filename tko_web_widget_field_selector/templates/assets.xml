@@ -7,10 +7,10 @@
 <template id="assets_backend" inherit_id="web.assets_backend">
     <xpath expr=".">
         <link rel="stylesheet"
-              href="/web_widget_field_selector/static/src/css/model_field_selector.less"/>
+              href="/tko_web_widget_field_selector/static/src/css/model_field_selector.less"/>
 
         <script type="text/javascript"
-                src="/web_widget_field_selector/static/src/js/field_selector.js"/>
+                src="/tko_web_widget_field_selector/static/src/js/field_selector.js"/>
     </xpath>
 </template>
 
