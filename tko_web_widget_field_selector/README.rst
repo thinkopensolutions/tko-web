@@ -36,8 +36,8 @@ To use this field in view
 .. code-block:: xml
 
     <field name="fax" position="attributes">
-                <attribute name="widget">field-selector</attribute>
-                <attribute name="attrs">{'readonly': [('model_id','=', False)]}</attribute>
-                <attribute name="data_model_field">model_id</attribute>
-            </field>
+       <attribute name="widget">field-selector</attribute>
+       <attribute name="attrs">{'readonly': [('model_id','=', False)]}</attribute>
+       <attribute name="data_model_field">model_id</attribute>
+    </field>
 
